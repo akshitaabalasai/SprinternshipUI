@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Data Quality Rule Manager</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    .form { background: white; padding: 20px; border-radius: 8px; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; background: white; }
+    th, td { padding: 8px; border: 1px solid #ccc; }
+    th { background: #333; color: white; }
+    input, textarea, button {
+      margin: 5px 0;
+      padding: 8px;
+      width: 100%;
+      font-size: 14px;
+    }
+    button { background-color: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    .edit-btn { background: #ffc107; }
+    .delete-btn { background: #dc3545; color: white; }
+  </style>
+</head>
+<body>
+  <h2>Data Quality Rule Manager</h2>
+
+  <div class="form">
+    <h3 id="formTitle">Create Rule</h3>
+    <form id="ruleForm">
+      <input id="rule_id" placeholder="Rule ID" required />
+      <input id="source_project_id" placeholder="Project ID" />
+      <input id="source_dataset_id" placeholder="Dataset ID" />
+      <input id="source_table_id" placeholder="Table ID" />
+      <input id="metric_column" placeholder="Metric Column" />
+      <textarea id="rule_sql" placeholder="SQL Rule"></textarea>
+      <input id="rule_family" placeholder="Rule Family" />
+      <textarea id="rule_description" placeholder="Description"></textarea>
+      <button type="submit">Save</button>
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Rule ID</th>
+        <th>Table</th>
+        <th>Column</th>
+        <th>Family</th>
+        <th>Description</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="rulesTable"></tbody>
+  </table>
+
+  <script>
+    const API = "http://127.0.0.1:5000/api/rules";
+    let editingId = null;
+
+    async function loadRules() {
+      const res = await fetch(API);
+      const rules = await res.json();
+      const table = document.getElementById("rulesTable");
+      table.innerHTML = "";
+      rules.forEach(rule => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${rule.rule_id}</td>
+          <td>${rule.source_table_id}</td>
+          <td>${rule.metric_column}</td>
+          <td>${rule.rule_family}</td>
+          <td>${rule.rule_description}</td>
+          <td>
+            <button class="edit-btn" onclick='editRule(${JSON.stringify(rule)})'>✏️</button>
+            <button class="delete-btn" onclick='deleteRule("${rule.rule_id}")'>🗑️</button>
+          </td>
+        `;
+        table.appendChild(row);
+      });
+    }
+
+    function editRule(rule) {
+      editingId = rule.rule_id;
+      document.getElementById("formTitle").innerText = "Edit Rule";
+      for (let key in rule) {
+        if (document.getElementById(key)) {
+          document.getElementById(key).value = rule[key];
+        }
+      }
+    }
+
+    async function deleteRule(rule_id) {
+      await fetch(`${API}/${rule_id}`, { method: "DELETE" });
+      loadRules();
+    }
+
+    document.getElementById("ruleForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fields = [
+        "rule_id", "source_project_id", "source_dataset_id", "source_table_id",
+        "metric_column", "rule_sql", "rule_family", "rule_description"
+      ];
+      const form = {};
+      fields.forEach(f => form[f] = document.getElementById(f).value);
+      form.rule_generation_timestamp = new Date().toISOString();
+
+      const url = editingId ? `${API}/${editingId}` : API;
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form)
+      });
+
+      if (!res.ok) {
+        const error = await res.text();
+        alert("Error: " + error);
+        return;
+      }
+
+      alert("Rule saved!");
+      editingId = null;
+      document.getElementById("formTitle").innerText = "Create Rule";
+      document.getElementById("ruleForm").reset();
+      loadRules();
+    });
+
+    loadRules();
+  </script>
+</body>
+</html>
